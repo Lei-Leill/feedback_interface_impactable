@@ -1,0 +1,131 @@
+.report-container {
+  border: 1px solid #2c3e50;
+  border-radius: 8px;
+  margin-top: 2rem;
+  background-color: #f8f9fa;
+  padding: 1.5rem;
+}
+
+.report-header {
+  text-align: center;
+  border-bottom: 2px solid #e0e0e0;
+  padding-bottom: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.report-header h3 {
+  color: #2c3e50;
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.summary-card {
+  display: flex;
+  justify-content: space-around;
+  gap: 1rem;
+  background: #ffffff;
+  padding: 1rem;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+.summary-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.summary-item .label {
+  font-size: 0.9rem;
+  color: #6c757d;
+  margin-bottom: 0.25rem;
+}
+
+.summary-item .value {
+  font-size: 1.75rem;
+  font-weight: bold;
+  color: #28a745;
+}
+
+.sensitivities {
+  font-size: 0.9rem;
+  color: #6c757d;
+  margin-top: 1rem;
+}
+
+.report-section {
+  margin-bottom: 2rem;
+}
+
+.report-section h3 {
+  color: #34495e;
+  border-bottom: 1px solid #bdc3c7;
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.narrative {
+  line-height: 1.6;
+  color: #34495e;
+}
+
+.impact-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.impact-table th, .impact-table td {
+  border: 1px solid #dee2e6;
+  padding: 0.75rem;
+  text-align: left;
+}
+
+.impact-table th {
+  background-color: #e9ecef;
+  font-weight: 600;
+}
+
+.impact-table tr:nth-child(even) {
+  background-color: #f8f9fa;
+}
+
+.trace-log {
+  background-color: #2c3e50;
+  color: #ecf0f1;
+  padding: 1rem;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.valuation-section {
+  text-align: center;
+  padding: 2rem;
+  background-color: #e9f5ff;
+  border: 1px solid #bde0fe;
+  border-radius: 8px;
+  margin-bottom: 2rem;
+}
+
+.feedback-title {
+  text-align: center;
+  margin-top: 3rem;
+  color: #34495e;
+}
+
+.error-container {
+  background-color: #fff0f0;
+  border-color: #ffbaba;
+}
+.error-container h3 {
+  color: #d8000c;
+}
+.error-log {
+  background-color: #333;
+  color: #fff;
+  padding: 1rem;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-family: 'Courier New', Courier, monospace;
+}
