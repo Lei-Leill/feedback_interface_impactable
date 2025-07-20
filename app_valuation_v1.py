@@ -4,24 +4,13 @@ import json
 from bs4 import BeautifulSoup
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import pint
-import traceback
-import re
-
-
-ureg = pint.UnitRegistry()
-ureg.define('USD = [currency]')
-ureg.define('dollar = USD')
 
 # --- Basic App Setup ---
 app = Flask(__name__)
 CORS(app)
 
 # --- Perplexity AI Configuration ---
-# Personal
-# PERPLEXITY_API_KEY = "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"
-# Impactable
-PERPLEXITY_API_KEY = "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"
+PERPLEXITY_API_KEY = "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"
 PERPLEXITY_API_URL = "https://api.perplexity.ai/chat/completions"
 
 # --- PROMPT STORAGE ---
@@ -177,85 +166,48 @@ Do not include any intro or explanation text.
     # --- VALUATION AGENT PROMPTS ---
     "val_identify_impacts": """Analyze the provided data to extract ONE key societal or environmental impact. Provide a precise description of the impact and its standard unit of measurement. Your output MUST be a valid JSON object. Example: {{\"description\": \"Reduction in wildfire response time\", \"unit\": \"hours\"}}""",
 
-    "val_research_counterfactuals": """
-    For the primary metric '{metric_description}' (unit: {unit}), research its counterfactual scenarios.
-    Metric: {metric_description}
-    Counterfactual Scenarios to research:
-    {counterfactual_list}
+    # --- NEW VALUATION PIPELINE PROMPTS ---
+    "val_research_counterfactuals": """For the impact '{description}', which represents a baseline performance, identify the top 2 most likely counterfactual scenarios that would have occurred without the company's intervention.
+A counterfactual is what would have happened anyway. For each scenario:
+1. Provide a brief, realistic description.
+2. Estimate the outcome value in the same unit ('{unit}'). This value represents the performance of the alternative scenario (e.g., if the metric is 'hours to extinguish fire', a higher value means it's worse).
+3. Estimate the probability of this scenario occurring (as a decimal). The probabilities for all scenarios you list MUST sum to 1.0.
 
-    For EACH scenario, your output MUST be a JSON object containing:
-    - "scenario": The name of the scenario.
-    - "value": A realistic numerical value in '{unit}'.
-    - "probability": The likelihood of this scenario (decimal, sum of all must be 1.0).
-    - "source_name": The name of the source publication or organization (e.g., "U.S. Forest Service Report").
-    - "source_url": A direct URL to the source.
-    - "source_quotation": The exact text from the source justifying the 'value'.
-    - "reasoning": A brief explanation for why this source and probability are appropriate.
+Your output MUST be a valid JSON list of objects.
+Example for an impact of 'Time to extinguish wildfire':
+[
+  {{
+    "scenario": "Traditional ground-based firefighting response",
+    "value": 150,
+    "probability": 0.6
+  }},
+  {{
+    "scenario": "Delayed response due to reliance on regional government aerial support",
+    "value": 120,
+    "probability": 0.4
+  }}
+]
+""",
 
-    Output a valid JSON list of these objects.
-    """,
+    "val_find_monetary_value_per_unit": """For the first-order outcome of '{outcome_description}' measured in '{unit}', find a single, justifiable monetary value per unit.
+Your primary goal is to find a proxy from a reliable source like an economic study, government report, academic paper, or industry analysis.
+Prioritize direct costs, but you may use well-established social cost estimates (e.g., Social Cost of Carbon) if applicable.
 
-    "val_research_abstract_unit": """
-    You are an economic analyst. The system needs to find a value for '{so_description}', but the primary unit, '{first_order_unit}', is an abstract, non-physical unit.
+Your output MUST be a single JSON object with the following keys:
+- "value": A single number (float or integer).
+- "currency": The currency code (e.g., "USD").
+- "source": A brief description of the source (e.g., "U.S. Forest Service, 2023 Economic Impact Report").
+- "reasoning": A short sentence explaining why this proxy is relevant.
 
-    Standard unit conversion is not possible. Your task is to perform two direct research queries:
+Example:
+{{
+  "value": 45000,
+  "currency": "USD",
+  "source": "RAND Corporation study on wildfire economics",
+  "reasoning": "This value represents the average economic damage, including property and infrastructure, per hour a large wildfire burns."
+}}
+""",
 
-    1.  **Direct Conversion Factor:** Find a credible value for the relationship expressed directly as '{so_unit}' per '{first_order_unit}'.
-    2.  **Monetary Proxy:** Find a credible monetary value (in USD) for one '{so_unit}'.
-
-    Your output MUST be a single JSON object with full sourcing.
-    Example for "Tonnes of CO2 emissions avoided per incident":
-    {{
-      "conversion_factor": {{
-        "value": 0.5,
-        "source_name": "Report on GHG from Industrial Accidents, 2022",
-        "source_url": "...",
-        "source_quotation": "On average, a significant industrial incident releases approximately 0.5 tonnes of CO2 equivalent.",
-        "reasoning": "This source directly links the abstract 'incident' to a physical quantity, which is required here."
-      }},
-      "monetary_proxy": {{
-        "value": 51,
-        "source_name": "US EPA - Social Cost of Carbon",
-        "source_url": "...",
-        "source_quotation": "The central estimate for the social cost of carbon... is $51 per metric ton.",
-        "reasoning": "This is the standard proxy for monetizing carbon emissions."
-      }}
-    }}
-    """,
-    "val_research_and_monetize_so": """
-    You are an economic analyst. For the second-order outcome '{so_description}', find a conversion factor and a monetary proxy.
-
-    - First-Order Outcome Unit: '{first_order_unit}'
-    - Second-Order Outcome Unit: '{so_unit}'
-
-    Your output MUST be a single JSON object with two keys: "conversion_factor" and "monetary_proxy".
-    Each key must contain an object with: "value", "source_name", "source_url", "source_quotation", and "reasoning".
-
-    1.  **conversion_factor:** How many '{so_unit}' are impacted per '{first_order_unit}'?
-    2.  **monetary_proxy:** What is the monetary value (in USD) per '{so_unit}'?
-
-    Example JSON structure:
-    {{
-      "conversion_factor": {{
-        "value": 3.0,
-        "source_name": "IPCC Special Report on Climate Change and Land",
-        "source_url": "https://www.ipcc.ch/srccl/",
-        "source_quotation": "Average carbon emissions from temperate forest fires are estimated to be approximately 3.0 tonnes of C per hectare burned.",
-        "reasoning": "The IPCC is the leading international body for climate change assessment, making its emission factors highly credible for this analysis."
-      }},
-      "monetary_proxy": {{
-        "value": 51,
-        "source_name": "US EPA - Report on the Social Cost of Greenhouse Gases",
-        "source_url": "https://www.epa.gov/environmental-economics/social-cost-greenhouse-gases",
-        "source_quotation": "The central estimate for the social cost of carbon (SC-CO2) for a 2020 emission year is $51 per metric ton...",
-        "reasoning": "The EPA's Social Cost of Carbon is a widely accepted standard in the US for monetizing carbon emissions damage."
-      }}
-    }}""",
-    "agent_define_unit": """
-    The following word was used as a unit of measurement but is not a known physical unit: '{unit_name}'.
-    Is this word a simple, countable, dimensionless item (like 'people', 'cases', 'events', 'reports')?
-    Respond with the single word 'countable' if yes. Otherwise, respond with 'unknown'.
-    """,
     # --- AGGREGATION & REPORTING PROMPTS ---
     "val_sensitivity_analysis": """Perform a sensitivity analysis on the final valuation by varying the key underlying assumptions. The key assumptions are the values and probabilities in the counterfactual analysis and the monetary value per unit. Provide a credible range (min and max) for the final valuation and explain which assumption has the greatest influence. Your output MUST be a single JSON object with 'base_value', 'min_value', 'max_value', and 'key_sensitivities' (list of strings) keys.""",
     "val_generate_report": """Generate a comprehensive, expert-level written report section explaining the quantified societal and environmental impact. This narrative must clearly justify the methodology, the counterfactual scenarios chosen, the monetization proxy used, all assumptions made, and explicitly state any limitations or uncertainties. The report should be clear, logical, and suitable for a client seeking in-depth analysis.""",
@@ -264,7 +216,7 @@ Do not include any intro or explanation text.
 
 
 # --- Core AI Function ---
-def call_perplexity(messages, temperature=0.2, max_tokens=4096):
+def call_perplexity(messages, temperature=0.2, max_tokens=2000):
     if not PERPLEXITY_API_KEY:
         return "Error: PERPLEXITY_API_KEY is not set."
     
@@ -447,200 +399,179 @@ def format_prompt(prompt_template, data_dict):
         prompt = prompt.replace(placeholder, str(value))
     return prompt
 
+# Add this new function to app.py
 def clean_and_parse_json(ai_string):
     """
-    A much more robust function to find, clean, and parse JSON from an AI's text response.
+    The definitive function to clean and parse messy AI JSON output.
+    It handles markdown fences, extra prose, and missing list brackets.
     """
-    # 1. First, try to find a JSON markdown block. This is the most reliable method.
-    match = re.search(r'```json\s*([\s\S]*?)\s*```', ai_string)
-    if match:
-        json_text = match.group(1)
-    else:
-        # 2. If no markdown, find the first '[' or '{' to start from.
-        start_bracket = ai_string.find('[')
-        start_curly = ai_string.find('{')
-        
-        if start_bracket == -1 and start_curly == -1:
-            print("JSON PARSING FAILED: No JSON start character '[' or '{' found.")
+    # In case there is comment in the json format
+    lines = ai_string.split('\n')
+    # For each line, split it at the comment marker and take the first part.
+    filtered_lines = [line.split('//')[0] for line in lines]
+    ai_string = '\n'.join(filtered_lines)
+
+    # 1. First, try to extract content from markdown fences if they exist.
+    if '```json' in ai_string:
+        try:
+            # Takes the content between ```json and ```
+            ai_string = ai_string.split('```json')[1].split('```')[0]
+        except IndexError:
+            # If the format is weird, fallback to finding the main JSON block
+            pass
+            
+    # 2. Find the start and end of the main JSON content (list or object)
+    # This effectively strips away any leading/trailing prose.
+    start = ai_string.find('{')
+    if start == -1:
+        start = ai_string.find('[')
+    
+    end = ai_string.rfind('}')
+    if end == -1:
+        end = ai_string.rfind(']')
+
+    if start != -1 and end != -1:
+        ai_string = ai_string[start:end+1]
+    
+    # 3. Clean and attempt to parse
+    try:
+        # Remove any lingering underscores from numbers
+        cleaned_text = ai_string.replace("_", "")
+        return json.loads(cleaned_text)
+    except json.JSONDecodeError:
+        # If it fails, it might be a list of objects without the outer brackets
+        try:
+            # Wrap in brackets and try again
+            cleaned_text = f"[{ai_string.replace('_', '')}]"
+            return json.loads(cleaned_text)
+        except json.JSONDecodeError as e:
+            # If it still fails, then the format is truly broken
+            print(f"JSON PARSING FAILED for string: {ai_string}\nError: {e}")
             return None
 
-        if start_bracket != -1 and (start_bracket < start_curly or start_curly == -1):
-            json_text = ai_string[start_bracket:]
-        else:
-            json_text = ai_string[start_curly:]
-
-    # 3. Clean up common AI-induced errors and attempt to parse.
-    try:
-        # --- THIS IS THE FIX ---
-        # Remove commas and underscores used as thousands separators in numbers.
-        # The regex (?<=\d) and (?=\d) are lookarounds that ensure we only remove
-        # commas/underscores that are between two digits.
-        json_text = re.sub(r'(?<=\d),(?=\d)', '', json_text)
-        json_text = re.sub(r'(?<=\d)_(?=\d)', '', json_text)
-        
-        return json.loads(json_text)
-    except json.JSONDecodeError as e:
-        print(f"JSON PARSING FAILED for string: {json_text}\nError: {e}")
-        return None
-
-
-def parse_all_metric_chains(analysis_data):
-    """
-    Parses the entire analysis data and returns a structured list of all metric chains.
-    """
-    # ... (The full function from the previous response goes here) ...
-    # This function takes analysis_data and returns the `chains` list.
-    metric_response = analysis_data['steps'][0]['response']
-    counterfactual_response = analysis_data['steps'][1]['response']
-    so_response = analysis_data['steps'][3]['response']
-    metric_blocks = metric_response.strip().split('\n\n')
-    counterfactual_blocks = counterfactual_response.strip().split('\n\n')
-    so_blocks = so_response.strip().split('\n\n')
-    chains = []
-    for i, metric_block in enumerate(metric_blocks):
-        try:
-            metric_lines = metric_block.strip().split('\n')
-            metric_desc = metric_lines[0].strip().replace('-', '').strip()
-            unit = None
-            for line in metric_lines:
-                if 'units:' in line.lower():
-                    unit = line.split(':')[1].split(',')[0].strip().lower()
-                    break
-            if not unit: continue
-            cf_items = [line.replace('-', '').strip() for line in counterfactual_blocks[i].strip().split('\n')[1:]]
-            so_items = []
-            for line in so_blocks[i].strip().split('\n'):
-                if line.strip().startswith('-'):
-                    match = re.search(r'-\s*(.*?)\s*\[(.*?)]', line)
-                    if match:
-                        so_items.append({"description": match.group(1).strip(), "unit": match.group(2).strip().lower()})
-            chains.append({
-                "metric": {"description": metric_desc, "unit": unit},
-                "counterfactuals": cf_items,
-                "second_order_outcomes": so_items
-            })
-        except IndexError:
-            print(f"WARNING: Mismatch in block counts at index {i}. Skipping this chain.")
-            continue
-    return chains
-
-
-# --- 3. The Complete `run_valuation` Function ---
 @app.route('/api/run_valuation', methods=['POST'])
 def run_valuation():
     """
-    Executes the full quantitative valuation pipeline for ALL metric chains.
+    This endpoint implements the new, direct valuation pipeline based on counterfactual analysis.
     """
     data = request.get_json()
-    analysis_data = data.get('analysis_data')
-    metric_value = float(data.get('metric_value'))
+    initial_ai_outputs = data.get('analysis_data')
+    metric_value = data.get('metric_value', 100) 
 
-    if not all([analysis_data, metric_value]):
-        return jsonify({"error": "A valid 'analysis_data' and 'metric_value' are required."}), 400
-
-    try:
-        all_metric_chains = parse_all_metric_chains(analysis_data)
-        if not all_metric_chains:
-            return jsonify({"error": "Failed to parse any valid metric chains from the input."}), 400
-        
-        print(f"MANAGER: Parsing successful. Found {len(all_metric_chains)} metric chains to process.")
-        
-        final_reports = []
-        grand_total_valuation = 0 * ureg.USD
-
-        # === START OF NEW OUTER LOOP ===
-        for chain_index, metric_chain in enumerate(all_metric_chains):
-            metric_info = metric_chain['metric']
-            counterfactual_list = metric_chain['counterfactuals']
-            so_list = metric_chain['second_order_outcomes']
-            
-            print(f"\n--- Processing Chain {chain_index + 1}/{len(all_metric_chains)}: '{metric_info['description']}' ---")
-
-            # A. Research Counterfactuals
-            cf_prompt = format_prompt(PROMPTS["val_research_counterfactuals"], {"metric_description": metric_info['description'], "unit": metric_info['unit'], "counterfactual_list": "\n".join(f"- {cf}" for cf in counterfactual_list)})
-            researched_counterfactuals = clean_and_parse_json(call_perplexity([{"role": "user", "content": cf_prompt}]))
-            if not researched_counterfactuals:
-                print("WARNING: Failed to research counterfactuals for this chain. Skipping chain.")
-                continue
-
-            # B. Calculate First-Order Outcome
-            weighted_cf_value = sum(s.get('value', 0) * s.get('probability', 0) for s in researched_counterfactuals)
-            first_order_value = metric_value - weighted_cf_value
-            first_order_outcome = {"description": f"Net change in {metric_info['description']}", "value": first_order_value, "unit": metric_info['unit']}
-            print(f"MANAGER: Calculated First-Order Outcome: {first_order_value:.2f} {first_order_outcome['unit']}")
-
-            # C. Loop through Second-Order Outcomes to calculate this chain's total value
-            chain_total_valuation = 0 * ureg.USD
-            for so_outcome in so_list:
-                so_description = so_outcome['description']
-                print(f"  - Processing SO Chain: '{so_description}'")
-                
-                try:
-                    # --- TIER 1 (Calculator Mode): Attempt calculation with pint ---
-                    print(f"    - Attempting physical unit conversion with pint...")
-                    
-                    # C.1. Research Monetization Data (Standard)
-                    so_prompt = format_prompt(PROMPTS["val_research_and_monetize_so"], {"first_order_unit": first_order_outcome['unit'], "so_description": so_description, "so_unit": so_outcome['unit']})
-                    monetization_data = clean_and_parse_json(call_perplexity([{"role": "user", "content": so_prompt}]))
-                    if not monetization_data: continue
-
-                    # C.2. Calculate using pint
-                    first_order_quantity = first_order_outcome['value'] * ureg(first_order_outcome['unit'])
-                    conv_factor = monetization_data['conversion_factor']['value'] * ureg(monetization_data['conversion_factor']['unit'])
-                    monetary_proxy = monetization_data['monetary_proxy']['value'] * ureg(monetization_data['monetary_proxy']['unit'])
-                    
-                    so_value = (first_order_quantity * conv_factor * monetary_proxy).to('USD')
-                    chain_total_valuation += so_value
-                    print(f"    - SUCCESS (Pint): Value is {so_value:~P.2f}")
-
-                except pint.errors.UndefinedUnitError:
-                    # --- TIER 2 (Researcher Mode): Triggered if a unit is abstract ---
-                    print(f"    - WARNING: Unit '{first_order_outcome['unit']}' is abstract. Switching to direct research mode.")
-                    
-                    try:
-                        # C.1. Research Monetization Data (Abstract Unit)
-                        so_prompt = format_prompt(PROMPTS["val_research_abstract_unit"], {"first_order_unit": first_order_outcome['unit'], "so_description": so_description, "so_unit": so_outcome['unit']})
-                        monetization_data = clean_and_parse_json(call_perplexity([{"role": "user", "content": so_prompt}]))
-                        if not monetization_data: continue
-
-                        # C.2. Calculate using simple multiplication (no pint conversion)
-                        first_order_val = first_order_outcome['value']
-                        conv_factor_val = monetization_data['conversion_factor']['value']
-                        monetary_proxy_val = monetization_data['monetary_proxy']['value']
-                        
-                        so_value_mag = first_order_val * conv_factor_val * monetary_proxy_val
-                        so_value = so_value_mag * ureg.USD # Wrap final number in pint currency
-                        chain_total_valuation += so_value
-                        print(f"    - SUCCESS (Agent Research): Value is {so_value:~P.2f}")
-
-                    except Exception as e:
-                        print(f"    - ERROR: Direct research failed for abstract unit: {e}")
-
-                except Exception as e:
-                    print(f"    - ERROR: A non-unit error occurred for chain '{so_description}': {e}")
-
-            # D. Finalize this metric chain's report
-            print(f"--- Chain {chain_index + 1} Total Valuation: {chain_total_valuation:~P.2f} ---")
-            grand_total_valuation += chain_total_valuation
-            final_reports.append({
-                "metric_chain": metric_chain['metric']['description'],
-                "chain_valuation_usd": round(chain_total_valuation.magnitude, 2),
-                "first_order_outcome": f"{first_order_outcome['value']:.2f} {first_order_outcome['unit']}"
-            })
-        # === END OF OUTER LOOP ===
-        
-        print(f"\n--- VALUATION COMPLETE ---")
-        print(f"GRAND TOTAL VALUATION: {grand_total_valuation:~P.2f}")
-
-        final_result_data = {
-            "grand_total_valuation": {"value": round(grand_total_valuation.magnitude, 2), "currency": "USD"},
-            "individual_chain_reports": final_reports
-        }
-        return jsonify(final_result_data)
-
-    except Exception as e:
-        traceback.print_exc()
-        return jsonify({"error": f"A fatal error occurred in the main pipeline: {str(e)}"}), 500
+    if not initial_ai_outputs:
+        return jsonify({"error": "Initial analysis data ('analysis_data') is required."}), 400
     
+    # List to store the full conversation log
+    conversation_log = []
+    
+    log_entry = f"Starting new valuation pipeline with metric value: {metric_value}"
+    print(f"VALUATION MANAGER: {log_entry}")
+    conversation_log.append({"agent": "Manager", "type": "start", "content": log_entry})
+    
+    # === AGENT 1: IMPACT IDENTIFICATION ===
+    impacts_prompt = PROMPTS["val_identify_impacts"] + "\n\nHere is the data to analyze:\n" + json.dumps(initial_ai_outputs)
+    conversation_log.append({"agent": "Impact ID Agent", "type": "prompt", "content": "Analyze data to find one key impact and unit."})
+    
+    impact_text = call_perplexity([{"role": "user", "content": impacts_prompt}])
+    impact = clean_and_parse_json(impact_text)
+    
+    if not impact or not isinstance(impact, dict) or 'description' not in impact or 'unit' not in impact:
+        err_msg = "Agent 1 (Impact Identification) failed to return a valid impact object."
+        conversation_log.append({"agent": "Manager", "type": "error", "content": err_msg})
+        return jsonify({"error": err_msg, "raw_output": impact_text}), 500
+
+    conversation_log.append({"agent": "Impact ID Agent", "type": "response", "content": impact})
+    impact['quantity'] = metric_value 
+    log_entry = f"Identified Impact: {impact['description']} ({impact['quantity']} {impact['unit']})"
+    print(f"[Manager] {log_entry}")
+    conversation_log.append({"agent": "Manager", "type": "info", "content": log_entry})
+
+    valuation_details = {"metric": impact}
+
+    # === AGENT 2: COUNTERFACTUAL RESEARCH ===
+    cf_prompt = format_prompt(PROMPTS["val_research_counterfactuals"], impact)
+    conversation_log.append({"agent": "Counterfactual Agent", "type": "prompt", "content": "Research counterfactual scenarios, values, and probabilities."})
+    
+    cf_scenarios_text = call_perplexity([{"role": "user", "content": cf_prompt}])
+    counterfactual_scenarios = clean_and_parse_json(cf_scenarios_text)
+
+    if not counterfactual_scenarios or not isinstance(counterfactual_scenarios, list):
+         err_msg = "Agent 2 (Counterfactual Research) failed to return valid scenarios."
+         conversation_log.append({"agent": "Manager", "type": "error", "content": err_msg})
+         return jsonify({"error": err_msg, "raw_output": cf_scenarios_text}), 500
+    
+    conversation_log.append({"agent": "Counterfactual Agent", "type": "response", "content": counterfactual_scenarios})
+    valuation_details["counterfactual_analysis"] = counterfactual_scenarios
+
+    # === CALCULATION STEP 3: WEIGHTED COUNTERFACTUAL & FIRST-ORDER OUTCOME ===
+    try:
+        weighted_counterfactual_value = sum(s.get('value', 0) * s.get('probability', 0) for s in counterfactual_scenarios)
+        first_order_outcome_value = weighted_counterfactual_value - impact['quantity']
+        first_order_outcome_desc = f"Net improvement over counterfactuals for '{impact['description']}'"
+        first_order_outcome = {"description": first_order_outcome_desc, "value": first_order_outcome_value, "unit": impact['unit']}
+        
+        valuation_details["first_order_outcome"] = first_order_outcome
+        log_entry = f"Calculated First-Order Outcome: {first_order_outcome_value:.1f} {impact['unit']}"
+        print(f"[Manager] {log_entry}")
+        conversation_log.append({"agent": "Calculation Step", "type": "calculation", "content": log_entry})
+    except (TypeError, KeyError) as e:
+        err_msg = f"Failed to calculate weighted counterfactual. Error: {e}"
+        conversation_log.append({"agent": "Manager", "type": "error", "content": err_msg})
+        return jsonify({"error": err_msg, "data": counterfactual_scenarios}), 500
+
+    # === AGENT 4: MONETIZATION RESEARCH ===
+    monetization_prompt_data = {"outcome_description": first_order_outcome["description"], "unit": first_order_outcome["unit"]}
+    monetization_prompt = format_prompt(PROMPTS["val_find_monetary_value_per_unit"], monetization_prompt_data)
+    conversation_log.append({"agent": "Monetization Agent", "type": "prompt", "content": "Find a monetary value per unit for the first-order outcome."})
+    
+    monetary_value_text = call_perplexity([{"role": "user", "content": monetization_prompt}])
+    monetary_value_per_unit = clean_and_parse_json(monetary_value_text)
+
+    if not monetary_value_per_unit or 'value' not in monetary_value_per_unit:
+        err_msg = "Agent 4 (Monetization Research) failed to return a valid monetary value."
+        conversation_log.append({"agent": "Manager", "type": "error", "content": err_msg})
+        return jsonify({"error": err_msg, "raw_output": monetary_value_text}), 500
+    
+    conversation_log.append({"agent": "Monetization Agent", "type": "response", "content": monetary_value_per_unit})
+    valuation_details["monetization"] = monetary_value_per_unit
+
+    # === CALCULATION STEP 5: FINAL VALUATION ===
+    try:
+        final_usd_value = first_order_outcome["value"] * monetary_value_per_unit["value"]
+        valuation_details["final_valuation"] = {"value": final_usd_value, "currency": monetary_value_per_unit.get("currency", "USD")}
+        log_entry = f"Calculated Final Valuation: {final_usd_value:,.1f} {monetary_value_per_unit.get('currency', 'USD')}"
+        print(f"[Manager] {log_entry}")
+        conversation_log.append({"agent": "Calculation Step", "type": "calculation", "content": log_entry})
+    except (TypeError, KeyError) as e:
+        err_msg = f"Failed to calculate final valuation. Error: {e}"
+        conversation_log.append({"agent": "Manager", "type": "error", "content": err_msg})
+        return jsonify({"error": err_msg}), 500
+        
+    # === FINAL AGGREGATION & REPORTING ===
+    conversation_log.append({"agent": "Manager", "type": "info", "content": "Generating final report and analysis."})
+    
+    sa_prompt_data = {"consolidated_value": valuation_details["final_valuation"]["value"]}
+    sa_prompt = format_prompt(PROMPTS["val_sensitivity_analysis"], sa_prompt_data)
+    value_range_analysis = clean_and_parse_json(call_perplexity([{"role": "user", "content": sa_prompt}]))
+
+    report_data_for_ai = {"valuation_details": valuation_details, "value_range_analysis": value_range_analysis}
+    report_prompt = PROMPTS["val_generate_report"] + "\n\nUse this data to generate the report:\n" + json.dumps(report_data_for_ai)
+    trace_prompt = PROMPTS["val_traceability_log"] + "\n\nUse this data to generate the log:\n" + json.dumps(report_data_for_ai)
+    
+    report_narrative = call_perplexity([{"role": "user", "content": report_prompt}])
+    traceability_log = call_perplexity([{"role": "user", "content": trace_prompt}])
+
+    final_valuation_result = {
+        "final_valuation": valuation_details["final_valuation"],
+        "value_range_analysis": value_range_analysis,
+        "report_narrative": report_narrative,
+        "traceability_log": traceability_log,
+        "valuation_pipeline_details": valuation_details,
+        "conversation_log": conversation_log # Include the log in the response
+    }
+    
+    return jsonify(final_valuation_result)
+
+
 if __name__ == '__main__':
     app.run(debug=True, port=5001)

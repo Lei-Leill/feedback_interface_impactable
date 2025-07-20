@@ -575,6 +575,7 @@ function App() {
       analysis_data: analysisData,
       metric_value: metricValue,
     };
+    console.log("SENDING THIS TO BACKEND:", JSON.stringify(payload.analysis_data, null, 2));
 
     try {
       const response = await fetch('http://localhost:5001/api/run_valuation', {
