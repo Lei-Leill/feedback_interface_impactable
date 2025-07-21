@@ -129,3 +129,209 @@
   word-wrap: break-word;
   font-family: 'Courier New', Courier, monospace;
 }
+
+.details-card h4 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+}
+
+.details-card {
+  margin-bottom: 20px;
+}
+
+
+.details-card h4 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+}
+
+.details-card {
+  margin-bottom: 20px;
+}
+
+.chain-summary {
+  display: flex;
+  justify-content: space-around;
+  margin-bottom: 20px;
+}
+
+.so-title {
+  margin-top: 25px;
+  margin-bottom: 10px;
+  color: #555;
+  font-weight: 600;
+}
+
+.so-detail-container {
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+
+.so-header {
+  background-color: #f9f9f9;
+  padding: 10px 15px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 500;
+}
+
+.so-header:hover {
+  background-color: #f1f1f1;
+}
+
+.so-header .arrow {
+  transition: transform 0.3s ease;
+}
+
+.so-header .arrow.open {
+  transform: rotate(180deg);
+}
+
+.so-content {
+  padding: 15px;
+  border-top: 1px solid #e0e0e0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.source-detail {
+  padding: 15px;
+  background: #fafafa;
+  border-radius: 4px;
+  border: 1px solid #eee;
+}
+
+.source-detail strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #333;
+}
+
+.source-quote {
+  font-style: italic;
+  color: #666;
+  border-left: 3px solid #ccc;
+  padding-left: 10px;
+  margin: 10px 0;
+}
+
+.source-reasoning {
+    font-size: 0.9em;
+    color: #444;
+}
+
+
+/* General Report Container Styles */
+.report-container { background-color: #f9fafb; padding: 20px; border-radius: 8px; }
+.report-header { margin-bottom: 30px; }
+.summary-card { background: #fff; border: 1px solid #e5e7eb; padding: 20px; border-radius: 8px; }
+.summary-item { text-align: center; }
+.summary-item .label { display: block; font-size: 0.9em; color: #6b7280; margin-bottom: 5px; }
+.summary-item .value { font-size: 1.8em; font-weight: 600; color: #111827; }
+.report-section { margin-top: 30px; }
+.report-section h3 { font-size: 1.5em; color: #1f2937; margin-bottom: 20px; text-align: center; }
+.error-container { border: 1px solid #fecaca; background-color: #fef2f2; }
+.error-container h3 { color: #b91c1c; }
+
+/* New Vertical Report Card Styles */
+.vertical-report-card {
+  background-color: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  margin-bottom: 30px;
+  padding: 25px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+}
+.step-header h3 {
+  font-size: 1.4em;
+  color: #111827;
+  margin: 0 0 25px 0;
+  padding-bottom: 15px;
+  border-bottom: 2px solid #f3f4f6;
+  text-align: left;
+}
+.step-container {
+  margin-bottom: 30px;
+}
+.step-container h4 {
+  font-size: 1.1em;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 5px;
+}
+.step-container p {
+  font-size: 0.9em;
+  color: #6b7280;
+  margin-top: 0;
+  margin-bottom: 15px;
+}
+.first-order-card {
+  background: #f0fdf4;
+  border: 1px solid #a7f3d0;
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+}
+.first-order-card .value {
+  font-size: 1.5em;
+  font-weight: 700;
+  color: #059669;
+  display: block;
+  margin-bottom: 10px;
+}
+.so-card {
+  border: 1px solid #f3f4f6;
+  border-radius: 8px;
+  padding: 20px;
+  margin-top: 15px;
+}
+.so-card h5 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  font-size: 1em;
+  font-weight: 600;
+}
+.so-details-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.source-card {
+  background: #f9fafb;
+  padding: 15px;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+}
+.source-card p {
+    margin: 0 0 10px 0;
+    font-size: 0.9em;
+}
+.source-quote {
+  font-style: italic;
+  color: #4b5563;
+  border-left: 3px solid #d1d5db;
+  padding-left: 10px;
+  margin: 10px 0;
+  font-size: 0.9em;
+}
+.source-reasoning {
+    font-size: 0.85em;
+    color: #4b5563;
+}
+.chain-total {
+  margin-top: 25px;
+  padding-top: 20px;
+  border-top: 2px solid #f3f4f6;
+  text-align: right;
+  font-size: 1.2em;
+  font-weight: 600;
+}

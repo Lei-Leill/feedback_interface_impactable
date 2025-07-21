@@ -1,34 +1,58 @@
 import React from 'react';
 import './ValuationReport.css';
 
+// Sub-component to display source details consistently
+const SourceCard = ({ title, data }) => {
+  // If the entire data object is missing, render a graceful message
+  if (!data) {
+    return (
+      <div className="source-card error">
+        <p><strong>{title}:</strong> Data is missing or incomplete.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="source-card">
+      <p><strong>{title}:</strong></p>
+      <ul>
+        {/* Safely render value and probability only if they exist */}
+        {data.value != null && <li><strong>Value:</strong> {data.value}</li>}
+        {data.probability != null && <li><strong>Probability:</strong> {data.probability}</li>}
+        <li>
+          <strong>Source:</strong> 
+          <a href={data?.source_url ?? '#'} target="_blank" rel="noopener noreferrer">
+            {data?.source_name ?? 'N/A'}
+          </a>
+        </li>
+      </ul>
+      <blockquote className="source-quote">
+        "{data?.source_quotation ?? 'No quotation available.'}"
+      </blockquote>
+      <p className="source-reasoning">
+        {data?.reasoning ?? 'No reasoning provided.'}
+      </p>
+    </div>
+  );
+};
+
+
 function ValuationReport({ data }) {
-  // This error handling block is still correct.
   if (!data || data.error) {
     return (
       <div className="report-container error-container">
         <h3>Valuation Failed</h3>
-        <p>The backend encountered an error and could not complete the valuation.</p>
-        <pre className="error-log">
-          <strong>Error:</strong> {data?.error || "Unknown error."}
-          <br/><br/>
-          <strong>Raw AI Output:</strong> {data?.raw_output || "Not available."}
-        </pre>
+        <p>The backend encountered an error: <strong>{data?.error || "Unknown error."}</strong></p>
       </div>
     );
   }
 
   const formatCurrency = (value) => {
-    // A small check to handle potential null or undefined values gracefully.
-    if (value == null) return '$0'; 
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      maximumFractionDigits: 0,
-    }).format(value);
+    if (value == null) return '$0';
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
   };
 
-  // A helper variable to make accessing the nested details cleaner.
-  const details = data?.valuation_pipeline_details;
+  const grandTotal = data?.grand_total_valuation;
+  const reports = data?.individual_chain_reports || [];
 
   return (
     <div className="report-container">
@@ -36,57 +60,60 @@ function ValuationReport({ data }) {
         <h3>Executive Summary</h3>
         <div className="summary-card">
           <div className="summary-item">
-            {/* UPDATED: Changed label for clarity */}
-            <span className="label">Final Calculated Value</span>
-            {/* FIX: Accessing the correct property for the final value */}
-            <span className="value">{formatCurrency(data?.final_valuation?.value)}</span>
-          </div>
-          <div className="summary-item">
-            <span className="label">Value Range (Sensitivity Analysis)</span>
-            <span className="value">
-              {formatCurrency(data?.value_range_analysis?.min_value)} - {formatCurrency(data?.value_range_analysis?.max_value)}
-            </span>
+            <span className="label">Grand Total Valuation</span>
+            <span className="value">{formatCurrency(grandTotal?.value)}</span>
           </div>
         </div>
-        <p className="sensitivities">
-          <strong>Key Sensitivities:</strong> {data?.value_range_analysis?.key_sensitivities?.join(', ') || 'N/A'}
-        </p>
       </div>
 
       <div className="report-section">
-        <h3>Valuation Narrative</h3>
-        <p className="narrative">{data?.report_narrative || 'No narrative was generated.'}</p>
-      </div>
+        <h3>Valuation Breakdown</h3>
+        {reports.length > 0 ? (
+          reports.map((report, index) => (
+            <div key={index} className="vertical-report-card">
+              <div className="step-header">
+                <h3>Metric {index + 1}: {report.metric_chain}</h3>
+              </div>
 
-      {/* --- REWORKED SECTION --- */}
-      {/* This entire section is replaced to show the new single pipeline structure */}
-      <div className="report-section">
-        <h3>Valuation Pipeline Details</h3>
-        {details ? (
-          <div className="summary-card details-card">
-            <div className="summary-item">
-              <span className="label">Metric</span>
-              <span className="value">{details.metric?.description}</span>
-              <span className="sub-value">Input Quantity: {details.metric?.quantity} {details.metric?.unit}</span>
+              <div className="step-container">
+                <h4>Step 1: Counterfactual Analysis</h4>
+                <p>This is what would have happened without the company's intervention, based on AI-powered research.</p>
+                {report.researched_counterfactuals?.map((cf, cf_index) => (
+                  <SourceCard key={cf_index} title={`Counterfactual: ${cf.scenario}`} data={cf} />
+                ))}
+              </div>
+
+              <div className="step-container">
+                <h4>Step 2: First-Order Outcome (Net Impact)</h4>
+                <div className="first-order-card">
+                  {/* This now correctly accesses the value from the passed object */}
+                  <span className="value">{report.first_order_outcome?.value?.toFixed(2)} {report.first_order_outcome?.unit}</span>
+                  <p>This is the calculated net impact. A positive number here indicates a positive societal impact.</p>
+                </div>
+              </div>
+
+              <div className="step-container">
+                <h4>Step 3: Second-Order Outcomes &amp; Valuation</h4>
+                <p>Here's how the net impact from Step 2 translates into real-world outcomes.</p>
+                {report.second_order_details?.map((so, so_index) => (
+                  <div key={so_index} className="so-card">
+                    <h5>{so.description}</h5>
+                    <div className="so-details-grid">
+                      <SourceCard title="Conversion Factor" data={so.source_details?.conversion_factor} />
+                      <SourceCard title="Impact Value per Unit" data={so.source_details?.impact_value_per_unit} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="chain-total">
+                Calculated Value for this Metric: <strong>{formatCurrency(report.chain_valuation_usd)}</strong>
+              </div>
             </div>
-            <div className="summary-item">
-              <span className="label">First-Order Outcome</span>
-              <span className="value">Net Improvement: {details.first_order_outcome?.value?.toFixed(1)} {details.first_order_outcome?.unit}</span>
-            </div>
-            <div className="summary-item">
-              <span className="label">Monetization Proxy</span>
-              <span className="value">{formatCurrency(details.monetization?.value)} per {details.monetization?.unit}</span>
-              <span className="sub-value">Source: {details.monetization?.source}</span>
-            </div>
-          </div>
+          ))
         ) : (
-          <p>Detailed pipeline data is not available.</p>
+          <p>No individual impact chains were successfully valuated.</p>
         )}
-      </div>
-      
-      <div className="report-section">
-        <h3>Traceability Log</h3>
-        <pre className="trace-log">{data?.traceability_log || 'No log available.'}</pre>
       </div>
     </div>
   );

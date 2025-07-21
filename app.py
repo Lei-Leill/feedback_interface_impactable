@@ -19,9 +19,10 @@ CORS(app)
 
 # --- Perplexity AI Configuration ---
 # Personal
-# PERPLEXITY_API_KEY = "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"
+#PERPLEXITY_API_KEY = "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"
 # Impactable
-PERPLEXITY_API_KEY = "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"
+#PERPLEXITY_API_KEY = "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"
+PERPLEXITY_API_KEY = "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"
 PERPLEXITY_API_URL = "https://api.perplexity.ai/chat/completions"
 
 # --- PROMPT STORAGE ---
@@ -156,21 +157,27 @@ The First Order Outcome must:
 No intro or conclusion text. Keep total output under 1000 characters.
 """,
     "critique_first_order": "Now, critique and revise the First Order Outcomes you just generated. Output only the corrected list in the original format.",
-    "generate_second_order": """Now, based on each First Order Outcome, identify the top **3 distinct, quantifiable Second Order Outcomes** that result indirectly from that outcome.
+    "generate_second_order": """You are an expert evaluator consolidating an impact analysis. Your task is to generate a final, structured markdown output that includes the metric, its counterfactuals, its first-order outcome, and its second-order outcomes.
 
-Each Second Order Outcome must:
-- Be logically caused by the First Order Outcome.
-- Be **expressed per unit** of the First Order Outcome.
-- Use a clear and specific name (max 8 words).
-- Use a measurement unit selected from this list: Tonnes, Liters, People, KWH, Incidents, Square Meters, Hectares, Hours, KM, Companies.
-- Avoid repetition, vagueness, or generic phrasing.
+### Output Format
+For each metric analyzed, generate a block of text using the exact markdown structure below.
+Use bold labels as shown. Separate each complete metric block with a double newline.
 
-**Output Format:** For each metric:  
-- List its counterfactual(s)  
-- Include the associated First Order Outcome  
-- Provide 3 distinct Second Order Outcomes (with their measurement units) under each First Order Outcome
+### Metric [Number]
+**Description:** [The name of the metric]
+**Units:** [The primary unit for the metric]
 
-Do not include any intro or explanation text.
+**Counterfactuals:**
+- [Counterfactual 1 Name] [Unit]
+- [Counterfactual 2 Name] [Unit]
+
+**First-Order Outcome:**
+- [First-Order Outcome Name] [Unit]
+
+**Second-Order Outcomes:**
+- [Second-Order Outcome 1 Name] [Unit]
+- [Second-Order Outcome 2 Name] [Unit]
+- [Second-Order Outcome 3 Name] [Unit]
 """,
     "critique_second_order": "Now, critique and revise the Second Order Outcomes you just generated. Output only the corrected list in the original format.",
     
@@ -243,7 +250,7 @@ Do not include any intro or explanation text.
         "source_quotation": "Average carbon emissions from temperate forest fires are estimated to be approximately 3.0 tonnes of C per hectare burned.",
         "reasoning": "The IPCC is the leading international body for climate change assessment, making its emission factors highly credible for this analysis."
       }},
-      "monetary_proxy": {{
+      "impact_value_per_unit": {{
         "value": 51,
         "source_name": "US EPA - Report on the Social Cost of Greenhouse Gases",
         "source_url": "https://www.epa.gov/environmental-economics/social-cost-greenhouse-gases",
@@ -251,6 +258,11 @@ Do not include any intro or explanation text.
         "reasoning": "The EPA's Social Cost of Carbon is a widely accepted standard in the US for monetizing carbon emissions damage."
       }}
     }}""",
+    "agent_determine_metric_polarity": """
+        For the metric '{metric_description}', does a higher number represent a better, more desirable outcome? 
+        Respond with the single word 'positive'. 
+        If a lower number is better (e.g., CO2 emissions, response time), respond with the single word 'negative'.
+        """,
     "agent_define_unit": """
     The following word was used as a unit of measurement but is not a known physical unit: '{unit_name}'.
     Is this word a simple, countable, dimensionless item (like 'people', 'cases', 'events', 'reports')?
@@ -524,9 +536,8 @@ def parse_all_metric_chains(analysis_data):
             continue
     return chains
 
-
 # --- 3. The Complete `run_valuation` Function ---
-@app.route('/api/run_valuation', methods=['POST'])
+'''@app.route('/api/run_valuation', methods=['POST'])
 def run_valuation():
     """
     Executes the full quantitative valuation pipeline for ALL metric chains.
@@ -534,6 +545,8 @@ def run_valuation():
     data = request.get_json()
     analysis_data = data.get('analysis_data')
     metric_value = float(data.get('metric_value'))
+    #print(f'analysis data: {analysis_data}')
+    #print(f'metric_value: {metric_value}')
 
     if not all([analysis_data, metric_value]):
         return jsonify({"error": "A valid 'analysis_data' and 'metric_value' are required."}), 400
@@ -553,11 +566,15 @@ def run_valuation():
             metric_info = metric_chain['metric']
             counterfactual_list = metric_chain['counterfactuals']
             so_list = metric_chain['second_order_outcomes']
-            
+            print(f'metric info: {metric_info}')
+            print(f'counterfactual_list: {counterfactual_list}')
+            print('so_list: {so_list}')
+
             print(f"\n--- Processing Chain {chain_index + 1}/{len(all_metric_chains)}: '{metric_info['description']}' ---")
 
             # A. Research Counterfactuals
             cf_prompt = format_prompt(PROMPTS["val_research_counterfactuals"], {"metric_description": metric_info['description'], "unit": metric_info['unit'], "counterfactual_list": "\n".join(f"- {cf}" for cf in counterfactual_list)})
+            print(cf_prompt)
             researched_counterfactuals = clean_and_parse_json(call_perplexity([{"role": "user", "content": cf_prompt}]))
             if not researched_counterfactuals:
                 print("WARNING: Failed to research counterfactuals for this chain. Skipping chain.")
@@ -637,10 +654,142 @@ def run_valuation():
             "individual_chain_reports": final_reports
         }
         return jsonify(final_result_data)
-
+    
     except Exception as e:
         traceback.print_exc()
         return jsonify({"error": f"A fatal error occurred in the main pipeline: {str(e)}"}), 500
+'''
+
+@app.route('/api/run_valuation', methods=['POST'])
+def run_valuation():
+    data = request.get_json()
+    analysis_data = data.get('analysis_data')
+    metric_value = float(data.get('metric_value'))
+
+    if not all([analysis_data, metric_value]):
+        return jsonify({"error": "A valid 'analysis_data' and 'metric_value' are required."}), 400
+
+    try:
+        all_metric_chains = parse_all_metric_chains(analysis_data)
+        if not all_metric_chains:
+            return jsonify({"error": "Failed to parse any valid metric chains from the input."}), 400
+        
+        print(f"MANAGER: Parsing successful. Found {len(all_metric_chains)} metric chains to process.")
+        
+        final_reports = []
+        grand_total_valuation = 0 * ureg.USD
+
+        # === MAIN LOOP: PROCESS EACH METRIC CHAIN ===
+        for chain_index, metric_chain in enumerate(all_metric_chains):
+            metric_info = metric_chain['metric']
+            counterfactual_list = metric_chain['counterfactuals']
+            so_list = metric_chain['second_order_outcomes']
+            
+            print(f"\n--- Processing Chain {chain_index + 1}/{len(all_metric_chains)}: '{metric_info['description']}' ---")
+
+            # 1. Determine Metric Polarity
+            polarity_prompt = format_prompt(PROMPTS["agent_determine_metric_polarity"], {"metric_description": metric_info['description']})
+            polarity = call_perplexity([{"role": "user", "content": polarity_prompt}], temperature=0.1).lower()
+            
+            # 2. Research Counterfactuals
+            cf_prompt = format_prompt(PROMPTS["val_research_counterfactuals"], {"metric_description": metric_info['description'], "unit": metric_info['unit'], "counterfactual_list": "\n".join(f"- {cf}" for cf in counterfactual_list)})
+            researched_counterfactuals = clean_and_parse_json(call_perplexity([{"role": "user", "content": cf_prompt}]))
+            if not researched_counterfactuals:
+                print("WARNING: Failed to research counterfactuals. Skipping chain.")
+                continue
+
+            # 3. Calculate First-Order Outcome and Adjust for Polarity
+            weighted_cf_value = sum(s.get('value', 0) * s.get('probability', 0) for s in researched_counterfactuals)
+            first_order_value = metric_value - weighted_cf_value
+            adjusted_first_order_value = first_order_value * -1 if 'negative' in polarity else first_order_value
+            first_order_outcome = {"description": f"Net change in {metric_info['description']}", "value": adjusted_first_order_value, "unit": metric_info['unit']}
+            print(f"MANAGER: First-Order Impact Value: {adjusted_first_order_value:.2f} {metric_info['unit']}")
+
+            # 4. Process Second-Order Outcomes for this chain
+            chain_total_valuation = 0 * ureg.USD
+            
+            # ---> monetized_chains is DEFINED HERE as an empty list for each metric chain.
+            monetized_chains = []
+            for so_outcome in so_list:
+                print(f"  - Processing SO Chain: '{so_outcome['description']}'")
+                try:
+                    # TIER 1: Attempt calculation with pint
+                    so_prompt = format_prompt(PROMPTS["val_research_and_monetize_so"], {"first_order_unit": first_order_outcome['unit'], "so_description": so_outcome['description'], "so_unit": so_outcome['unit']})
+                    monetization_data = clean_and_parse_json(call_perplexity([{"role": "user", "content": so_prompt}]))
+                    if not monetization_data: continue
+
+                    # first_order_quantity = first_order_outcome['value'] * ureg(first_order_outcome['unit'])
+                    # conv_factor = monetization_data['conversion_factor']['value'] * ureg(monetization_data['conversion_factor']['unit'])
+                    # monetary_proxy = monetization_data['monetary_proxy']['value'] * ureg(monetization_data['monetary_proxy']['unit'])
+                    # so_value = (first_order_quantity * conv_factor * monetary_proxy).to('USD')
+                    
+                except pint.errors.UndefinedUnitError:
+                    # TIER 2: Unit is abstract, switch to direct research
+                    print(f"    - WARNING: Unit '{first_order_outcome['unit']}' is abstract. Switching to direct research mode.")
+                    so_prompt = format_prompt(PROMPTS["val_research_abstract_unit"], {"first_order_unit": first_order_outcome['unit'], "so_description": so_outcome['description'], "so_unit": so_outcome['unit']})
+                    monetization_data = clean_and_parse_json(call_perplexity([{"role": "user", "content": so_prompt}]))
+                
+                if not monetization_data or 'conversion_factor' not in monetization_data or 'monetary_proxy' not in monetization_data or monetization_data['conversion_factor']['value'] == None or monetization_data['monetary_proxy']['value']== None:
+                    print(f"    - ERROR: Direct research agent failed. Skipping SO chain.")
+                    continue
+                    
+                if monetization_data:
+                    # A. Normalize AI response (handles AI "inertia")
+                    if 'monetary_proxy' in monetization_data and 'impact_value_per_unit' not in monetization_data:
+                        monetization_data['impact_value_per_unit'] = monetization_data.pop('monetary_proxy')
+
+                    # B. Verify that all required keys and sub-keys are present
+                    cf_data = monetization_data.get('conversion_factor', {})
+                    ipu_data = monetization_data.get('impact_value_per_unit', {})
+                    
+                    if cf_data.get('value') is not None and ipu_data.get('value') is not None:
+                        # C. If all data is present, perform the calculation
+                        try:
+                            so_value_mag = first_order_outcome['value'] * cf_data['value'] * ipu_data['value']
+                            so_value = so_value_mag * ureg.USD
+                            print(f"    - SUCCESS: Value is {so_value:~P.2f}")
+                        except Exception as calc_error:
+                             print(f"    - ERROR: Calculation failed with an unexpected error: {calc_error}")
+                    else:
+                        print(f"    - ERROR: AI response was incomplete (missing a 'value' key).")
+                else:
+                    print(f"    - ERROR: AI research agent failed to return any valid data.")
+                
+                
+                chain_total_valuation += so_value
+                print(f"    - SUCCESS: Value is {so_value:~P.2f}")
+                
+                # ---> monetized_chains is POPULATED HERE with the results of a successful calculation.
+                monetized_chains.append({
+                    "description": so_outcome['description'],
+                    "value": round(so_value.magnitude, 2),
+                    "source_details": monetization_data
+                })
+
+            # 5. Finalize this chain's report
+            print(f"--- Chain {chain_index + 1} Total Valuation: {chain_total_valuation:~P.2f} ---")
+            grand_total_valuation += chain_total_valuation
+            final_reports.append({
+                "metric_chain": metric_info['description'],
+                "chain_valuation_usd": round(chain_total_valuation.magnitude, 2),
+                "first_order_outcome": first_order_outcome,
+                "researched_counterfactuals": researched_counterfactuals,
+                "second_order_details": monetized_chains 
+            })
+        
+        print(f'final report {final_reports}')
+        # --- FINAL AGGREGATION ---
+        print(f"\n--- VALUATION COMPLETE ---")
+        print(f"GRAND TOTAL VALUATION: {grand_total_valuation:~P.2f}")
+        final_result_data = {
+            "grand_total_valuation": {"value": round(grand_total_valuation.magnitude, 2), "currency": "USD"},
+            "individual_chain_reports": final_reports
+        }
+        return jsonify(final_result_data)
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": f"A fatal error occurred: {str(e)}"}), 500
     
 if __name__ == '__main__':
     app.run(debug=True, port=5001)
