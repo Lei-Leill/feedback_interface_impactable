@@ -39,7 +39,7 @@ cd react-feedback-page
 npm start
 ```
 
-# Structure of the File
+# Structure of the Code
 
 ```
 feedback-interface-impactable/
