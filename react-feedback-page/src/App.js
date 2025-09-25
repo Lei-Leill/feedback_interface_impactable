@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import FeedbackSection from './FeedbackSection';
 import ValuationReport from './ValuationReport';
-import LiveLog from './LiveLog';
-import AgentConversationLog from './AgentConversationLog'; // Import the new component
+//import LiveLog from './LiveLog';
+//import AgentConversationLog from './AgentConversationLog'; // Import the new component
 import './App.css';
 
 function App() {

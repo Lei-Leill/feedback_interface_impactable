@@ -8,21 +8,21 @@ import pint
 import traceback
 import re
 
+from bubble_helper import get_bubble_system_examples, format_correct_examples_context, get_wrong_examples_context
 
 ureg = pint.UnitRegistry()
 ureg.define('USD = [currency]')
 ureg.define('dollar = USD')
 
-# --- Basic App Setup ---
+# --- Basic Flask App Setup ---
 app = Flask(__name__)
 CORS(app)
 
+from dotenv import load_dotenv
+load_dotenv()
 # --- Perplexity AI Configuration ---
-# Personal
-#PERPLEXITY_API_KEY = "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"
 # Impactable
-#PERPLEXITY_API_KEY = "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"
-PERPLEXITY_API_KEY = "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"
+PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY")
 PERPLEXITY_API_URL = "https://api.perplexity.ai/chat/completions"
 
 # --- PROMPT STORAGE ---
@@ -80,8 +80,12 @@ When generating names, it is important to remember that we do so to search for q
 When generating metrics, think in advance about generating and finding values for counterfactuals and Second Order Outcomes later.
 For example, the counterfactual "Number of Products Manufactured Using Traditional Leather [items]" is problematic because we will not find quantifiable values on the internet, as "Number of Products Manufactured" is not commonly measured. Thus, the metric "Number of Products Manufactured Using the Company's Material [items]" is not relevant.
 
+Below are correct and incorrect examples.  Please pay close attention to the relationships among metrics, counterfactuals, first-order outcomes, second-order outcomes, and costs. Study the **wrong examples especially carefully**. They reveal common logic flaws and will help you avoid similar errors. Understanding **why** something is wrong is more important than simply copying what is correct.
 
-We will analyze and name each item one by one. Please confirm that you have understood the overall objective, the process, and the examples. Respond with "Let's start" when you are ready to begin the process.
+{correct_examples_context}
+
+{wrong_examples_context}
+
 """,
     "summarize_website": "Summarize the following website content in a concise and informative way, focusing on the company's primary product or service and its direct impact.",
     "generate_metrics": """great. now Develop a Comprehensive Metric List for Impact Analysis.
@@ -350,9 +354,23 @@ def generate_all():
     # This is our conversation history, which we will manage carefully.
     conversation_history = []
 
+    # Fetch examples from Bubble API
+    try:
+        bubble_examples = get_bubble_system_examples()
+        correct_examples_context = format_correct_examples_context(bubble_examples)
+        wrong_examples_context = get_wrong_examples_context()
+    except Exception as e:
+        print(f"Failed to fetch and format examples from Bubble: {e}")
+        # Decide whether to proceed without examples or return an error
+        # For robustness, we can continue with empty example strings
+        correct_examples_context = "No correct examples available."
+        wrong_examples_context = "No wrong examples available."
+
     # --- Step 0: Persona Setup ---
     # The persona prompt is the foundational "system" message.
-    conversation_history.append({"role": "system", "content": PROMPTS["persona"]})
+    persona_prompt = PROMPTS['persona'].format(correct_examples_context = correct_examples_context,\
+                                               wrong_examples_context = wrong_examples_context)
+    conversation_history.append({"role": "system", "content": persona_prompt})
     
     # --- Step 1: Website Parsing & Summarization ---
     summary = agent_parse_and_summarize(url)
