@@ -47,7 +47,7 @@ feedback-interface-impactable/
 ├── .gitignore          
 ├── backend.py              <-- main Flask app
 └── bubble_helper.py    <-- helper functions for parsing bubble data 
-└── react-feedback
+└── 📁react-feedback
 └───── src 
 └─────── App.js      <-- Front-end main file
 └─────── ValuationReport.js  
