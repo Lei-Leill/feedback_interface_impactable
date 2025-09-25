@@ -11,9 +11,7 @@ The Backend:
 The Frontend (React):
 
 - [X] Provides a clean, intuitive user interface for entering a URL.
-
 - [X] Communicates with the backend to fetch and display the impact analysis.
-
 - [X] Allows users to review the results.
 
 
@@ -47,7 +45,7 @@ npm start
 feedback-interface-impactable/
 ├── .env    <-- You have to create this on your local machine with API keys
 ├── .gitignore          
-├── app.py              <-- main Flask app
+├── backend.py              <-- main Flask app
 └── bubble_helper.py    <-- helper functions for parsing bubble data 
 └── react-feedback
 └───── src 
