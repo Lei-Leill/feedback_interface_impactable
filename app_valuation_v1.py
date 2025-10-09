@@ -10,8 +10,6 @@ app = Flask(__name__)
 CORS(app)
 
 # --- Perplexity AI Configuration ---
-PERPLEXITY_API_KEY = "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"
-PERPLEXITY_API_URL = "https://api.perplexity.ai/chat/completions"
 
 # --- PROMPT STORAGE ---
 PROMPTS = {
